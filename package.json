@@ -1,0 +1,30 @@
+{
+  "name": "eth-lottery",
+  "version": "1.0.0",
+  "description": "Block-chain based Lottery System",
+  "main": "",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "truffle-hdwallet-provider": "^1.0.17"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alstjd0921/eth-lottery.git"
+  },
+  "keywords": [
+    "blockchain"
+  ],
+  "author": "alstjd0921",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/alstjd0921/eth-lottery/issues"
+  },
+  "homepage": "https://github.com/alstjd0921/eth-lottery#readme"
+}
