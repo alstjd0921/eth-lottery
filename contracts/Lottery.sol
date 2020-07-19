@@ -12,18 +12,51 @@ contract Lottery {
     uint256 private _head;
     mapping(uint256 => BetInfo) private _bets;
 
-    address public owner;
+    address payable public owner;
+
+    uint256 private _pot;
+    bool private mode = false; // false: use answer for test, ture: use real block hash
+    bytes32 public answerForTest;
 
     uint256 internal constant BLOCK_LIMIT = 256;
     uint256 internal constant BET_BLOCK_INTERVAL = 3;
     uint256 internal constant BET_AMOUNT = 5 * 10**15; // 0.005 ETH
 
-    uint256 private _pot;
-
     enum BlockStatus {Checkable, NotReavealed, BlockLimitPassed}
     enum BettingResult {Fail, Win, Draw}
 
     event BET(
+        uint256 index,
+        address bettor,
+        uint256 amount,
+        bytes1 challs,
+        uint256 answerBlockNumber
+    );
+    event WIN(
+        uint256 index,
+        address bettor,
+        uint256 amount,
+        bytes1 challs,
+        bytes1 answer,
+        uint256 answerBlockNumber
+    );
+    event FAIL(
+        uint256 index,
+        address bettor,
+        uint256 amount,
+        bytes1 challs,
+        bytes1 answer,
+        uint256 answerBlockNumber
+    );
+    event DRAW(
+        uint256 index,
+        address bettor,
+        uint256 amount,
+        bytes1 challs,
+        bytes1 answer,
+        uint256 answerBlockNumber
+    );
+    event REFUND(
         uint256 index,
         address bettor,
         uint256 amount,
@@ -66,21 +99,84 @@ contract Lottery {
         return true;
     }
 
-    // Distribute
+    /**
+     * @dev check betting result value and distribute pot money
+     * Fail: Stake goes pot, Win: Get Pot money, Draw | Unable to check answer: Get only bet amount
+     */
     function distribute() public {
         BetInfo memory b;
         BlockStatus currBlockStatus;
+        BettingResult currBettingResult;
 
         uint256 curr;
+        uint256 transferAmount;
         for (curr = _head; curr < _tail; curr++) {
             b = _bets[curr];
             currBlockStatus = getBlockStatus(b.answerBlockNumber);
 
             // Checkable : block.number > answerBlockNumber && block.number - BLOCK_LIMIT < answerBlockNumber
             if (currBlockStatus == BlockStatus.Checkable) {
+                bytes32 answerBlockHash = getAnswerBlockHash(
+                    b.answerBlockNumber
+                );
+                currBettingResult = isMatch(b.challs, answerBlockHash);
+
                 // if win, bettor gets pot
+                if (currBettingResult == BettingResult.Win) {
+                    // transfer pot
+                    transferAmount = transferAfterPayingFee(
+                        b.bettor,
+                        _pot + BET_AMOUNT
+                    );
+
+                    // pot = 0
+                    _pot = 0;
+
+                    // emit WIN
+                    emit WIN(
+                        curr,
+                        b.bettor,
+                        transferAmount,
+                        b.challs,
+                        answerBlockHash[0],
+                        b.answerBlockNumber
+                    );
+                }
+
                 // if fail, bettor's money goes pot
+                if (currBettingResult == BettingResult.Fail) {
+                    // pot = pot+BET_AMOUNT
+                    _pot += BET_AMOUNT;
+
+                    // emit FAIL
+                    emit FAIL(
+                        curr,
+                        b.bettor,
+                        0,
+                        b.challs,
+                        answerBlockHash[0],
+                        b.answerBlockNumber
+                    );
+                }
+
                 // if draw, refund bettor's money
+                if (currBettingResult == BettingResult.Draw) {
+                    // transfer only BET_AMOUNT
+                    transferAmount = transferAfterPayingFee(
+                        b.bettor,
+                        BET_AMOUNT
+                    );
+
+                    // emit DRAW
+                    emit DRAW(
+                        curr,
+                        b.bettor,
+                        transferAmount,
+                        b.challs,
+                        answerBlockHash[0],
+                        b.answerBlockNumber
+                    );
+                }
             }
 
             // Uncheckable (Not mined) : block.number <= answerBlockNumber
@@ -91,11 +187,55 @@ contract Lottery {
             // Uncheckable (Block limit passed) : block.number >= answerBlockNumber + BLOCK_LIMIT
             if (currBlockStatus == BlockStatus.BlockLimitPassed) {
                 // refund
+                transferAmount = transferAfterPayingFee(b.bettor, BET_AMOUNT);
+
                 // emit refund event
+                emit REFUND(
+                    curr,
+                    b.bettor,
+                    transferAmount,
+                    b.challs,
+                    b.answerBlockNumber
+                );
             }
 
             popBet(curr);
         }
+        _head = curr;
+    }
+
+    function transferAfterPayingFee(address payable addr, uint256 amount)
+        internal
+        returns (uint256)
+    {
+        // uint256 fee = amount / 100;
+        uint256 fee = 0;
+        uint256 amountWithoutFee = amount - fee;
+
+        // transfer to addr
+        addr.transfer(amountWithoutFee);
+
+        // transfer to owner
+        owner.transfer(fee);
+
+        return amountWithoutFee;
+    }
+
+    function setAnswerFotTest(bytes32 answer) public returns (bool result) {
+        require(
+            msg.sender == owner,
+            "Only owner can set the answer for test mode"
+        );
+        answerForTest = answer;
+        return true;
+    }
+
+    function getAnswerBlockHash(uint256 answerBlockNumber)
+        internal
+        view
+        returns (bytes32 answer)
+    {
+        return mode ? blockhash(answerBlockNumber) : answerForTest;
     }
 
     /**
