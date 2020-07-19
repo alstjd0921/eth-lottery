@@ -22,12 +22,12 @@ contract Lottery {
     uint256 internal constant BET_BLOCK_INTERVAL = 3;
     uint256 internal constant BET_AMOUNT = 5 * 10**15; // 0.005 ETH
 
-    enum BlockStatus {Checkable, NotReavealed, BlockLimitPassed}
+    enum BlockStatus {Checkable, NotRevealed, BlockLimitPassed}
     enum BettingResult {Fail, Win, Draw}
 
     event BET(
         uint256 index,
-        address bettor,
+        address indexed bettor,
         uint256 amount,
         bytes1 challs,
         uint256 answerBlockNumber
@@ -72,22 +72,40 @@ contract Lottery {
         return _pot;
     }
 
-    // Bet
+    /**
+     * @dev Bet and distribute. User should send 0.005 ETH with 1 byte character.
+     * Information that stored in queue will be dealt in distribute function
+     * @param challs character that user bet on
+     * @return result
+     * check function worked well
+     */
+    function betAndDistribute(bytes1 challs)
+        public
+        payable
+        returns (bool result)
+    {
+        bet(challs);
+
+        distribute();
+
+        return true;
+    }
+
     /**
      * @dev Bet. User should send 0.005 ETH with 1 byte character.
      * Information that stored in queue will be dealt in distribute function
      * @param challs character that user bet on
-     * @return results
+     * @return result
      * check function worked well
      */
-    function bet(bytes1 challs) public payable returns (bool results) {
-        // check ether is sent
+    function bet(bytes1 challs) public payable returns (bool result) {
+        // Check the proper ether is sent
         require(msg.value == BET_AMOUNT, "Not enough ETH");
 
-        // push bet to queue
+        // Push bet to the queue
         require(pushBet(challs), "Fail to add a new Bet Info");
 
-        // event log
+        // Emit event
         emit BET(
             _tail - 1,
             msg.sender,
@@ -104,23 +122,22 @@ contract Lottery {
      * Fail: Stake goes pot, Win: Get Pot money, Draw | Unable to check answer: Get only bet amount
      */
     function distribute() public {
+        uint256 curr;
+        uint256 transferAmount;
+
         BetInfo memory b;
         BlockStatus currBlockStatus;
         BettingResult currBettingResult;
 
-        uint256 curr;
-        uint256 transferAmount;
         for (curr = _head; curr < _tail; curr++) {
             b = _bets[curr];
             currBlockStatus = getBlockStatus(b.answerBlockNumber);
-
-            // Checkable : block.number > answerBlockNumber && block.number - BLOCK_LIMIT < answerBlockNumber
+            // Checkable : block.number > AnswerBlockNumber && block.number  <  BLOCK_LIMIT + AnswerBlockNumber 1
             if (currBlockStatus == BlockStatus.Checkable) {
                 bytes32 answerBlockHash = getAnswerBlockHash(
                     b.answerBlockNumber
                 );
                 currBettingResult = isMatch(b.challs, answerBlockHash);
-
                 // if win, bettor gets pot
                 if (currBettingResult == BettingResult.Win) {
                     // transfer pot
@@ -142,12 +159,10 @@ contract Lottery {
                         b.answerBlockNumber
                     );
                 }
-
                 // if fail, bettor's money goes pot
                 if (currBettingResult == BettingResult.Fail) {
-                    // pot = pot+BET_AMOUNT
+                    // pot = pot + BET_AMOUNT
                     _pot += BET_AMOUNT;
-
                     // emit FAIL
                     emit FAIL(
                         curr,
@@ -179,17 +194,16 @@ contract Lottery {
                 }
             }
 
-            // Uncheckable (Not mined) : block.number <= answerBlockNumber
-            if (currBlockStatus == BlockStatus.NotReavealed) {
+            // Not Revealed : block.number <= AnswerBlockNumber 2
+            if (currBlockStatus == BlockStatus.NotRevealed) {
                 break;
             }
 
-            // Uncheckable (Block limit passed) : block.number >= answerBlockNumber + BLOCK_LIMIT
+            // Block Limit Passed : block.number >= AnswerBlockNumber + BLOCK_LIMIT 3
             if (currBlockStatus == BlockStatus.BlockLimitPassed) {
                 // refund
                 transferAmount = transferAfterPayingFee(b.bettor, BET_AMOUNT);
-
-                // emit refund event
+                // emit refund
                 emit REFUND(
                     curr,
                     b.bettor,
@@ -221,7 +235,7 @@ contract Lottery {
         return amountWithoutFee;
     }
 
-    function setAnswerFotTest(bytes32 answer) public returns (bool result) {
+    function setAnswerForTest(bytes32 answer) public returns (bool result) {
         require(
             msg.sender == owner,
             "Only owner can set the answer for test mode"
@@ -249,9 +263,6 @@ contract Lottery {
         pure
         returns (BettingResult)
     {
-        // challs 0xab
-        // answer 0xab......ff 32 bytes
-
         bytes1 c1 = challs;
         bytes1 c2 = challs;
 
@@ -286,13 +297,13 @@ contract Lottery {
     {
         if (
             block.number > answerBlockNumber &&
-            block.number - BLOCK_LIMIT < answerBlockNumber
+            block.number < BLOCK_LIMIT + answerBlockNumber
         ) {
             return BlockStatus.Checkable;
         }
 
         if (block.number <= answerBlockNumber) {
-            return BlockStatus.NotReavealed;
+            return BlockStatus.NotRevealed;
         }
 
         if (block.number >= answerBlockNumber + BLOCK_LIMIT) {
@@ -320,11 +331,11 @@ contract Lottery {
     function pushBet(bytes1 challs) internal returns (bool) {
         BetInfo memory b;
         b.bettor = msg.sender; // 20 byte
-        b.answerBlockNumber = block.number + BET_BLOCK_INTERVAL; // 32 byte (20000 gas)
-        b.challs = challs; // byte (20000 gas (calc with bettor gas))
+        b.answerBlockNumber = block.number + BET_BLOCK_INTERVAL; // 32byte  20000 gas
+        b.challs = challs; // byte // 20000 gas (calc with b.bettor)
 
         _bets[_tail] = b;
-        _tail++; // 32 byte edit (20000 gas)
+        _tail++; // 32byte edit 5000 gas
 
         return true;
     }
