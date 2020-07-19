@@ -20,6 +20,9 @@ contract Lottery {
 
     uint256 private _pot;
 
+    enum BlockStatus {Checkable, NotReavealed, BlockLimitPassed}
+    enum BettingResult {Fail, Win, Draw}
+
     event BET(
         uint256 index,
         address bettor,
@@ -63,10 +66,103 @@ contract Lottery {
         return true;
     }
 
-    // Store the bet to the queue
-
     // Distribute
-    // check the result
+    function distribute() public {
+        BetInfo memory b;
+        BlockStatus currBlockStatus;
+
+        uint256 curr;
+        for (curr = _head; curr < _tail; curr++) {
+            b = _bets[curr];
+            currBlockStatus = getBlockStatus(b.answerBlockNumber);
+
+            // Checkable : block.number > answerBlockNumber && block.number - BLOCK_LIMIT < answerBlockNumber
+            if (currBlockStatus == BlockStatus.Checkable) {
+                // if win, bettor gets pot
+                // if fail, bettor's money goes pot
+                // if draw, refund bettor's money
+            }
+
+            // Uncheckable (Not mined) : block.number <= answerBlockNumber
+            if (currBlockStatus == BlockStatus.NotReavealed) {
+                break;
+            }
+
+            // Uncheckable (Block limit passed) : block.number >= answerBlockNumber + BLOCK_LIMIT
+            if (currBlockStatus == BlockStatus.BlockLimitPassed) {
+                // refund
+                // emit refund event
+            }
+
+            popBet(curr);
+        }
+    }
+
+    /**
+     * @dev check betting chars match with answer
+     * @param challs betting chars
+     * @param answer block hash
+     * @return result
+     */
+    function isMatch(bytes1 challs, bytes32 answer)
+        public
+        pure
+        returns (BettingResult)
+    {
+        // challs 0xab          byte
+        // answer 0xab....ff 32 bytes
+
+        bytes1 c1 = challs;
+        bytes1 c2 = challs;
+
+        bytes1 a1 = answer[0];
+        bytes1 a2 = answer[0];
+
+        // Get first char
+        c1 = c1 >> 4; // 0xab -> 0x0a
+        c1 = c1 << 4; // 0x0a -> 0xa0
+        a1 = a1 >> 4;
+        a2 = a1 << 4;
+
+        // Get second char
+        c2 = c2 << 4; // 0xab -> 0xb0
+        c2 = c2 >> 4; // 0xb0 -> 0x0b
+        a2 = a2 << 4;
+        a2 = a2 >> 4;
+
+        if (a1 == c1 && a2 == c2) {
+            return BettingResult.Win;
+        }
+
+        if (a1 == c1 || a2 == c2) {
+            return BettingResult.Draw;
+        }
+
+        return BettingResult.Fail;
+    }
+
+    function getBlockStatus(uint256 answerBlockNumber)
+        internal
+        view
+        returns (BlockStatus)
+    {
+        if (
+            block.number > answerBlockNumber &&
+            block.number - BLOCK_LIMIT < answerBlockNumber
+        ) {
+            return BlockStatus.Checkable;
+        }
+
+        if (block.number <= answerBlockNumber) {
+            return BlockStatus.NotReavealed;
+        }
+
+        if (block.number >= answerBlockNumber + BLOCK_LIMIT) {
+            return BlockStatus.BlockLimitPassed;
+        }
+
+        return BlockStatus.BlockLimitPassed; // refund when something works wrong
+    }
 
     function getBetInfo(uint256 index)
         public
@@ -85,12 +181,12 @@ contract Lottery {
 
     function pushBet(bytes1 challs) internal returns (bool) {
         BetInfo memory b;
-        b.bettor = msg.sender;
-        b.answerBlockNumber = block.number + BET_BLOCK_INTERVAL;
-        b.challs = challs;
+        b.bettor = msg.sender; // 20 byte
+        b.answerBlockNumber = block.number + BET_BLOCK_INTERVAL; // 32 byte (20000 gas)
+        b.challs = challs; // byte (20000 gas (calc with bettor gas))
 
         _bets[_tail] = b;
-        _tail++;
+        _tail++; // 32 byte edit (20000 gas)
 
         return true;
     }
