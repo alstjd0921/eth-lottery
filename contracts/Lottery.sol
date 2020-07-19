@@ -109,8 +109,8 @@ contract Lottery {
         pure
         returns (BettingResult)
     {
-        // challs 0xab          byte
-        // answer 0xab....ff 32 bytes
+        // challs 0xab
+        // answer 0xab......ff 32 bytes
 
         bytes1 c1 = challs;
         bytes1 c2 = challs;
@@ -118,13 +118,13 @@ contract Lottery {
         bytes1 a1 = answer[0];
         bytes1 a2 = answer[0];
 
-        // Get first char
+        // Get first number
         c1 = c1 >> 4; // 0xab -> 0x0a
         c1 = c1 << 4; // 0x0a -> 0xa0
         a1 = a1 >> 4;
-        a2 = a1 << 4;
+        a1 = a1 << 4;
 
-        // Get second char
+        // Get Second number
         c2 = c2 << 4; // 0xab -> 0xb0
         c2 = c2 >> 4; // 0xb0 -> 0x0b
         a2 = a2 << 4;
@@ -132,9 +132,7 @@ contract Lottery {
 
         if (a1 == c1 && a2 == c2) {
             return BettingResult.Win;
-        }
-
-        if (a1 == c1 || a2 == c2) {
+        } else if (a1 == c1 || a2 == c2) {
             return BettingResult.Draw;
         }
 

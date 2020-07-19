@@ -60,18 +60,16 @@ contract("Lottery", function ([deployer, user1, user2]) {
     });
   });
 
-  describe.only('isMatch', function () {
+  describe('isMatch', function () {
     let blockHash = '0xabec17438e4f0afb9cc8b77ce84bb7fd501497cfa9a1695095247daa5b4b7bcc';
 
     it('should be BettingResult.Win when two characters match', async () => {
       let matchingResult = await lottery.isMatch('0xab', blockHash);
-      console.log('Win match : ', matchingResult);
       assert.equal(matchingResult, 1);
     })
 
     it('should be BettingResult.Fail when unmatch', async () => {
       let matchingResult = await lottery.isMatch('0xcd', blockHash);
-      console.log('Fail match : ', matchingResult);
       assert.equal(matchingResult, 0);
     })
 
