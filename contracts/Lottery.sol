@@ -15,7 +15,7 @@ contract Lottery {
     address payable public owner;
 
     uint256 private _pot;
-    bool private mode = false; // false: use answer for test, ture: use real block hash
+    bool private mode = true; // false: use answer for test, ture: use real block hash
     bytes32 public answerForTest;
 
     uint256 internal constant BLOCK_LIMIT = 256;

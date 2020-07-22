@@ -16,7 +16,7 @@
   "scripts": {
     "test": "truffle test ./test/lottery.test.js",
     "compile": "truffle compile",
-    "migrate": "truffle migrate --reset",
+    "migrate": "truffle migrate --network ropsten",
     "clean": "rm -rf ./build"
   },
   "repository": {
