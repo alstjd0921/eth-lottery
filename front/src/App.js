@@ -23,7 +23,7 @@ class App extends Component {
           challenges: 'N/A',
           answer: 'N/A',
           targetBlockNumber: 'N/A',
-          pot: '0',
+          pot: 'N/A',
         },
       ],
     };
